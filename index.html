@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>shake-shake-GO</title>
+<style>
+:root {
+--primary: #ff6b6b;
+--primary-dark: #ee5253;
+--bg: #f8f9fa;
+--card-bg: #ffffff;
+--text: #2d3436;
+--text-sub: #636e72;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+background-color: var(--bg);
+color: var(--text);
+padding: 16px;
+display: flex;
+justify-content: center;
+}
+.container { width: 100%; max-width: 500px; }
+header { text-align: center; margin-bottom: 20px; }
+h1 { color: var(--primary); font-size: 1.8rem; letter-spacing: 1px; }
+.card {
+background: var(--card-bg);
+border-radius: 12px;
+padding: 20px;
+box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+margin-bottom: 16px;
+}
+label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 6px; font-weight: bold; }
+input {
+width: 100%;
+padding: 12px;
+border: 1px solid #dfe6e9;
+border-radius: 8px;
+font-size: 1rem;
+margin-bottom: 14px;
+outline: none;
+}
+input:focus { border-color: var(--primary); }
+button {
+width: 100%;
+padding: 12px;
+background: var(--primary);
+color: #fff;
+border: none;
+border-radius: 8px;
+font-size: 1rem;
+font-weight: bold;
+cursor: pointer;
+transition: background 0.2s;
+}
+button:hover { background: var(--primary-dark); }
+.btn-sub {
+background: #dfe6e9;
+color: var(--text);
+margin-top: 8px;
+}
+.btn-sub:hover { background: #b2bec3; }
+.room-header {
+display: flex;
+justify-content: space-between;
+align-items: center;
+margin-bottom: 16px;
+border-bottom: 2px solid #f1f2f6;
+padding-bottom: 10px;
+}
+.badge {
+background: #ffeaa7;
+color: #d63031;
+padding: 4px 8px;
+border-radius: 6px;
+font-size: 0.8rem;
+font-weight: bold;
+}
+.spot-card {
+background: #ffffff;
+border-left: 5px solid var(--primary);
+border-radius: 8px;
+padding: 12px;
+margin-bottom: 10px;
+box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+.spot-title { font-weight: bold; font-size: 1.05rem; margin-bottom: 4px; }
+.spot-meta { font-size: 0.8rem; color: var(--text-sub); }
+.empty-msg { text-align: center; color: var(--text-sub); padding: 20px 0; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+<h1>🍣 shake-shake-GO</h1>
+</header>
+
+<!-- ルーム入室画面 -->
+<div id="login-section" class="card">
+<h2 style="font-size: 1.2rem; margin-bottom: 12px;">旅のルームに入る</h2>
+<label>合言葉・ルーム名</label>
+<input type="text" id="input-room" placeholder="例: kanazawa-trip">
+<label>あなたのニックネーム</label>
+<input type="text" id="input-user" placeholder="例: たろう">
+<button id="btn-join">ルームに参加する</button>
+</div>
+
+<!-- ルーム内画面 -->
+<div id="room-section" style="display: none;">
+<div class="card">
+<div class="room-header">
+<div>
+<span style="font-size: 0.8rem; color: var(--text-sub);">ルーム:</span>
+<strong id="display-room-id"></strong>
+</div>
+<span class="badge" id="display-user-name"></span>
+</div>
+
+<label>スポット名・行きたい場所</label>
+<input type="text" id="input-spot-name" placeholder="例: 近江町市場で海鮮丼">
+<label>メモ・予算・満腹度など</label>
+<input type="text" id="input-spot-memo" placeholder="例: 予算2,500円 / 朝イチが狙い目">
+<button id="btn-add-spot">スポットを追加する</button>
+</div>
+
+<div class="card">
+<h3 style="font-size: 1.1rem; margin-bottom: 12px;">登録スポット一覧</h3>
+<div id="spots-list">
+<p class="empty-msg">読み込み中...</p>
+</div>
+<button id="btn-leave" class="btn-sub">別のルームへ移動</button>
+</div>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey: "AIzaSyCKswI50wBLwO2J0EEgDHtv6eJEQByDf4A",
+authDomain: "shake-shake-go.firebaseapp.com",
+projectId: "shake-shake-go",
+storageBucket: "shake-shake-go.firebasestorage.app",
+messagingSenderId: "341844322280",
+appId: "1:341844322280:web:078b3114008546770ca65d",
+measurementId: "G-HPN15KEBHF"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+let unsubscribe = null;
+let currentRoom = "";
+let currentUser = "";
+
+const loginSection = document.getElementById("login-section");
+const roomSection = document.getElementById("room-section");
+const displayRoomId = document.getElementById("display-room-id");
+const displayUserName = document.getElementById("display-user-name");
+const spotsList = document.getElementById("spots-list");
+
+// ルーム参加
+document.getElementById("btn-join").addEventListener("click", () => {
+const room = document.getElementById("input-room").value.trim();
+const user = document.getElementById("input-user").value.trim();
+if (!room || !user) {
+alert("ルーム名とお名前を入力してください！");
+return;
+}
+currentRoom = room;
+currentUser = user;
+joinRoom(room, user);
+});
+
+function joinRoom(room, user) {
+displayRoomId.textContent = room;
+displayUserName.textContent = user;
+loginSection.style.display = "none";
+roomSection.style.display = "block";
+
+// リアルタイムリスナー設定 (ルームごとにデータを完全分離)
+if (unsubscribe) unsubscribe();
+const q = query(
+collection(db, "rooms", room, "spots"),
+orderBy("createdAt", "desc")
+);
+
+unsubscribe = onSnapshot(q, (snapshot) => {
+spotsList.innerHTML = "";
+if (snapshot.empty) {
+spotsList.innerHTML = '<p class="empty-msg">まだスポットがありません。上のフォームから追加してね！</p>';
+return;
+}
+snapshot.forEach((docSnap) => {
+const data = docSnap.data();
+const card = document.createElement("div");
+card.className = "spot-card";
+card.innerHTML = `
+<div class="spot-title">${escapeHtml(data.name || "")}</div>
+<div class="spot-meta">追加者: ${escapeHtml(data.user || "名無し")} ｜ ${escapeHtml(data.memo || "")}</div>
+`;
+spotsList.appendChild(card);
+});
+}, (err) => {
+alert("データ取得エラー: " + err.message);
+});
+}
+
+// スポット追加
+document.getElementById("btn-add-spot").addEventListener("click", async () => {
+const nameInput = document.getElementById("input-spot-name");
+const memoInput = document.getElementById("input-spot-memo");
+const name = nameInput.value.trim();
+const memo = memoInput.value.trim();
+
+if (!name) {
+alert("スポット名を入力してください！");
+return;
+}
+
+try {
+await addDoc(collection(db, "rooms", currentRoom, "spots"), {
+name: name,
+memo: memo,
+user: currentUser,
+createdAt: serverTimestamp()
+});
+nameInput.value = "";
+memoInput.value = "";
+} catch (err) {
+alert("保存に失敗しました: " + err.message);
+}
+});
+
+// 退出
+document.getElementById("btn-leave").addEventListener("click", () => {
+if (unsubscribe) unsubscribe();
+roomSection.style.display = "none";
+loginSection.style.display = "block";
+});
+
+function escapeHtml(str) {
+return String(str)
+.replace(/&/g, "&amp;")
+.replace(/</g, "&lt;")
+.replace(/>/g, "&gt;")
+.replace(/"/g, "&quot;")
+.replace(/'/g, "&#039;");
+}
+</script>
+</body>
+</html>
