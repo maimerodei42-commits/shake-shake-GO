@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>shake-shake-GO</title>
+<!-- 地図ライブラリ Leaflet -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
 --primary: #ff6b6b;
@@ -18,28 +21,28 @@ body {
 font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 background-color: var(--bg);
 color: var(--text);
-padding: 16px;
+padding: 12px;
 display: flex;
 justify-content: center;
 }
-.container { width: 100%; max-width: 500px; }
-header { text-align: center; margin-bottom: 20px; }
-h1 { color: var(--primary); font-size: 1.8rem; letter-spacing: 1px; }
+.container { width: 100%; max-width: 600px; }
+header { text-align: center; margin-bottom: 12px; }
+h1 { color: var(--primary); font-size: 1.6rem; letter-spacing: 1px; }
 .card {
 background: var(--card-bg);
 border-radius: 12px;
-padding: 20px;
+padding: 16px;
 box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-margin-bottom: 16px;
+margin-bottom: 14px;
 }
-label { display: block; font-size: 0.85rem; color: var(--text-sub); margin-bottom: 6px; font-weight: bold; }
+label { display: block; font-size: 0.8rem; color: var(--text-sub); margin-bottom: 4px; font-weight: bold; }
 input {
 width: 100%;
-padding: 12px;
+padding: 10px;
 border: 1px solid #dfe6e9;
 border-radius: 8px;
-font-size: 1rem;
-margin-bottom: 14px;
+font-size: 0.95rem;
+margin-bottom: 10px;
 outline: none;
 }
 input:focus { border-color: var(--primary); }
@@ -50,7 +53,7 @@ background: var(--primary);
 color: #fff;
 border: none;
 border-radius: 8px;
-font-size: 1rem;
+font-size: 0.95rem;
 font-weight: bold;
 cursor: pointer;
 transition: background 0.2s;
@@ -61,14 +64,13 @@ background: #dfe6e9;
 color: var(--text);
 margin-top: 8px;
 }
-.btn-sub:hover { background: #b2bec3; }
 .room-header {
 display: flex;
 justify-content: space-between;
 align-items: center;
-margin-bottom: 16px;
+margin-bottom: 12px;
 border-bottom: 2px solid #f1f2f6;
-padding-bottom: 10px;
+padding-bottom: 8px;
 }
 .badge {
 background: #ffeaa7;
@@ -78,17 +80,34 @@ border-radius: 6px;
 font-size: 0.8rem;
 font-weight: bold;
 }
+/* 地図のスタイル */
+#map {
+width: 100%;
+height: 320px;
+border-radius: 10px;
+margin-bottom: 12px;
+border: 1px solid #dfe6e9;
+}
+.map-hint {
+font-size: 0.8rem;
+color: var(--primary-dark);
+margin-bottom: 8px;
+font-weight: bold;
+text-align: center;
+}
 .spot-card {
 background: #ffffff;
 border-left: 5px solid var(--primary);
 border-radius: 8px;
-padding: 12px;
-margin-bottom: 10px;
+padding: 10px;
+margin-bottom: 8px;
 box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+cursor: pointer;
 }
-.spot-title { font-weight: bold; font-size: 1.05rem; margin-bottom: 4px; }
+.spot-card:hover { background: #fff5f5; }
+.spot-title { font-weight: bold; font-size: 1rem; margin-bottom: 2px; }
 .spot-meta { font-size: 0.8rem; color: var(--text-sub); }
-.empty-msg { text-align: center; color: var(--text-sub); padding: 20px 0; font-size: 0.9rem; }
+.empty-msg { text-align: center; color: var(--text-sub); padding: 16px 0; font-size: 0.85rem; }
 </style>
 </head>
 <body>
@@ -99,11 +118,11 @@ box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 
 <!-- ルーム入室画面 -->
 <div id="login-section" class="card">
-<h2 style="font-size: 1.2rem; margin-bottom: 12px;">旅のルームに入る</h2>
+<h2 style="font-size: 1.1rem; margin-bottom: 12px;">旅のルームに入る</h2>
 <label>合言葉・ルーム名</label>
-<input type="text" id="input-room" placeholder="例: kanazawa-trip">
+<input type="text" id="input-room" placeholder="例: trip-kanazawa">
 <label>あなたのニックネーム</label>
-<input type="text" id="input-user" placeholder="例: たろう">
+<input type="text" id="input-user" placeholder="例: かか">
 <button id="btn-join">ルームに参加する</button>
 </div>
 
@@ -118,15 +137,22 @@ box-shadow: 0 2px 6px rgba(0,0,0,0.04);
 <span class="badge" id="display-user-name"></span>
 </div>
 
-<label>スポット名・行きたい場所</label>
-<input type="text" id="input-spot-name" placeholder="例: 近江町市場で海鮮丼">
-<label>メモ・予算・満腹度など</label>
-<input type="text" id="input-spot-memo" placeholder="例: 予算2,500円 / 朝イチが狙い目">
-<button id="btn-add-spot">スポットを追加する</button>
+<!-- 地図表示エリア -->
+<div class="map-hint">👇 地図をタップしてピンを立てたい場所を選んでね！</div>
+<div id="map"></div>
+
+<label>スポット名・店名</label>
+<input type="text" id="input-spot-name" placeholder="例: 金沢駅 / 近江町市場">
+<label>メモ・予算・満腹度</label>
+<input type="text" id="input-spot-memo" placeholder="例: 寿司食べる！ / 予算3000円">
+<input type="hidden" id="input-lat">
+<input type="hidden" id="input-lng">
+
+<button id="btn-add-spot">この場所にスポットを追加</button>
 </div>
 
 <div class="card">
-<h3 style="font-size: 1.1rem; margin-bottom: 12px;">登録スポット一覧</h3>
+<h3 style="font-size: 1rem; margin-bottom: 10px;">登録スポット一覧（タップで地図移動）</h3>
 <div id="spots-list">
 <p class="empty-msg">読み込み中...</p>
 </div>
@@ -155,6 +181,9 @@ const db = getFirestore(app);
 let unsubscribe = null;
 let currentRoom = "";
 let currentUser = "";
+let map = null;
+let tempMarker = null;
+let markers = [];
 
 const loginSection = document.getElementById("login-section");
 const roomSection = document.getElementById("room-section");
@@ -175,13 +204,38 @@ currentUser = user;
 joinRoom(room, user);
 });
 
+function initMap() {
+if (map) return;
+// 日本の中心（東京付近）で初期化
+map = L.map("map").setView([35.681236, 139.767125], 11);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+attribution: "© OpenStreetMap contributors"
+}).addTo(map);
+
+// 地図タップで仮ピン設置
+map.on("click", (e) => {
+const { lat, lng } = e.latlng;
+document.getElementById("input-lat").value = lat;
+document.getElementById("input-lng").value = lng;
+
+if (tempMarker) {
+tempMarker.setLatLng(e.latlng);
+} else {
+tempMarker = L.marker(e.latlng, { opacity: 0.8 }).addTo(map);
+}
+tempMarker.bindPopup("ここに追加します").openPopup();
+});
+}
+
 function joinRoom(room, user) {
 displayRoomId.textContent = room;
 displayUserName.textContent = user;
 loginSection.style.display = "none";
 roomSection.style.display = "block";
 
-// リアルタイムリスナー設定 (ルームごとにデータを完全分離)
+initMap();
+setTimeout(() => { map.invalidateSize(); }, 300);
+
 if (unsubscribe) unsubscribe();
 const q = query(
 collection(db, "rooms", room, "spots"),
@@ -190,20 +244,47 @@ orderBy("createdAt", "desc")
 
 unsubscribe = onSnapshot(q, (snapshot) => {
 spotsList.innerHTML = "";
+// 既存マーカーのクリア
+markers.forEach(m => map.removeLayer(m));
+markers = [];
+
 if (snapshot.empty) {
-spotsList.innerHTML = '<p class="empty-msg">まだスポットがありません。上のフォームから追加してね！</p>';
+spotsList.innerHTML = '<p class="empty-msg">まだスポットがありません。地図をタップして追加してね！</p>';
 return;
 }
+
+const bounds = [];
+
 snapshot.forEach((docSnap) => {
 const data = docSnap.data();
 const card = document.createElement("div");
 card.className = "spot-card";
 card.innerHTML = `
-<div class="spot-title">${escapeHtml(data.name || "")}</div>
-<div class="spot-meta">追加者: ${escapeHtml(data.user || "名無し")} ｜ ${escapeHtml(data.memo || "")}</div>
+<div class="spot-title">${escapeHtml(data.name || "名称未設定")}</div>
+<div class="spot-meta">追加: ${escapeHtml(data.user || "名無し")} ｜ ${escapeHtml(data.memo || "")}</div>
 `;
+
+// 緯度経度がある場合は地図にピンを立てる
+if (data.lat && data.lng) {
+const marker = L.marker([data.lat, data.lng]).addTo(map);
+marker.bindPopup(`<b>${escapeHtml(data.name)}</b><br>${escapeHtml(data.memo || "")}<br><small>by ${escapeHtml(data.user)}</small>`);
+markers.push(marker);
+bounds.push([data.lat, data.lng]);
+
+// カードタップでそのピンへ地図をズーム移動
+card.addEventListener("click", () => {
+map.setView([data.lat, data.lng], 15);
+marker.openPopup();
+});
+}
+
 spotsList.appendChild(card);
 });
+
+// 登録スポットが全員収まるように地図範囲を自動調整
+if (bounds.length > 0) {
+map.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 });
+}
 }, (err) => {
 alert("データ取得エラー: " + err.message);
 });
@@ -213,6 +294,9 @@ alert("データ取得エラー: " + err.message);
 document.getElementById("btn-add-spot").addEventListener("click", async () => {
 const nameInput = document.getElementById("input-spot-name");
 const memoInput = document.getElementById("input-spot-memo");
+const latVal = document.getElementById("input-lat").value;
+const lngVal = document.getElementById("input-lng").value;
+
 const name = nameInput.value.trim();
 const memo = memoInput.value.trim();
 
@@ -220,16 +304,29 @@ if (!name) {
 alert("スポット名を入力してください！");
 return;
 }
+if (!latVal || !lngVal) {
+alert("地図上の行きたい場所をタップしてピンを置いてから追加してください！");
+return;
+}
 
 try {
 await addDoc(collection(db, "rooms", currentRoom, "spots"), {
 name: name,
 memo: memo,
+lat: parseFloat(latVal),
+lng: parseFloat(lngVal),
 user: currentUser,
 createdAt: serverTimestamp()
 });
+
 nameInput.value = "";
 memoInput.value = "";
+document.getElementById("input-lat").value = "";
+document.getElementById("input-lng").value = "";
+if (tempMarker) {
+map.removeLayer(tempMarker);
+tempMarker = null;
+}
 } catch (err) {
 alert("保存に失敗しました: " + err.message);
 }
